@@ -166,6 +166,37 @@ test("admin login", async ({ page }) => {
 
 })
 
+test("franchise long", async ({page}) => {
+    //Login
+    await page.route('*/**/api/auth', async (route) => {
+        const loginFranchiseeRequest = { email: "john@test.com", password: "john" }
+        const loginFranchiseeResponse = {
+            user: {
+                name: "John Cena",
+                email: "john@test.com",
+                roles: [{ role: "franchisee" }],
+                id: 448
+            },
+            token: "abcd1234"
+        };
+        expect(route.request().method()).toBe('PUT');
+        expect(route.request().postDataJSON()).toMatchObject(loginFranchiseeRequest);
+        await route.fulfill({ json: loginFranchiseeResponse });
+    });
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('john@test.com');
+    await page.getByRole('textbox', { name: 'Password' }).fill('john');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await expect(page.getByText('The web\'s best pizza', { exact: true })).toBeVisible();
+    await page.goto('/franchise-dashboard');
+    await expect(page.getByLabel('Global').getByRole('link', { name: 'Franchise' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Logout' })).toBeVisible();
+    await page.getByLabel('Global').getByRole('link', { name: 'Franchise' }).click();
+
+})
+
 test('registration, logout', async ({ page }) => {
     //Registration route
     await page.route('**/api/auth', async (route) => {
