@@ -33,7 +33,140 @@ test('about page', async ({ page }) => {
     await expect(page.getByRole('list')).toContainText('about');
 })
 
-test('registration, logout, login', async ({ page }) => {
+test("admin login", async ({ page }) => {
+    //Login
+    await page.route('*/**/api/auth', async (route) => {
+        const loginAdminRequest = { email: "john@test.com", password: "john" }
+        const loginAdminResponse = {
+            user: {
+                name: "John Cena",
+                email: "john@test.com",
+                roles: [{ role: "admin" }],
+                id: 448
+            },
+            token: "abcd1234"
+        };
+        expect(route.request().method()).toBe('PUT');
+        expect(route.request().postDataJSON()).toMatchObject(loginAdminRequest);
+        await route.fulfill({ json: loginAdminResponse });
+    });
+
+    let franchiseGetCallsCount = 0 //Used to keep track of how many times we have called it using GET
+
+    //Franchise
+    await page.route('*/**/api/franchise', async (route) => {
+        const method = route.request().method();
+
+        if (method === 'POST') {
+            //req: {stores: [], id: "", name: "test=", admins: [{email: "f@jwt.com"}]}
+            const req = {stores: [], id: "", name: "first franchise", admins: [{email: "f@jwt.com"}]}
+            //res: {
+            //     "stores": [],
+            //     "id": 60,
+            //     "name": "test=",
+            //     "admins": [
+            //         {
+            //             "email": "f@jwt.com",
+            //             "id": 3,
+            //             "name": "pizza franchisee"
+            //         }
+            //     ]
+            // }
+            const res = {
+                    stores: [],
+                    id: 60,
+                    name: "first franchise",
+                    admins: [
+                        {
+                            email: "f@jwt.com",
+                            id: 3,
+                            name: "pizza franchisee"
+                        }
+                    ]
+                }
+            expect(route.request().postDataJSON()).toMatchObject(req);
+            await route.fulfill({ json: res});
+        } else if (method === 'GET') {
+            franchiseGetCallsCount += 1;
+            if (franchiseGetCallsCount == 1) {
+                //first call = empty
+                await route.fulfill({ json: [] });
+            } else {
+                //second call = one thingy
+                const res = [{
+                    id: 58,
+                    name: "first franchise",
+                    admins: [
+                        {
+                            id: 3,
+                            name: "pizza franchisee",
+                            email: "f@jwt.com"
+                        }
+                    ],
+                    stores: []
+                }]
+
+                //res: [{
+                //         "id": 58,
+                //         "name": "first franchise",
+                //         "admins": [
+                //             {
+                //                 "id": 3,
+                //                 "name": "pizza franchisee",
+                //                 "email": "f@jwt.com"
+                //             }
+                //         ],
+                //         "stores": []
+                //     }]
+                await route.fulfill({ json: res});
+            }
+        }
+    });
+
+
+    // Login as admin
+    await page.goto('/login');
+    await page.getByRole('textbox', { name: 'Email address' }).fill('john@test.com');
+    await page.getByRole('textbox', { name: 'Password' }).fill('john');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Logout' })).toBeVisible();
+    await page.getByRole('link', { name: 'JC' }).click();
+    await expect(page.getByRole('heading')).toContainText('Your pizza kitchen');
+    await expect(page.getByRole('main')).toContainText('John Cena');
+    await expect(page.getByRole('main')).toContainText('john@test.com');
+
+    // Admin page
+    //first get
+    await page.getByRole('link', { name: 'Admin' }).click();
+    await expect(page.getByText('Mama Ricci\'s kitchen')).toBeVisible();
+    await expect(page.getByRole('main')).toContainText('Keep the dough rolling and the franchises signing up.');
+    await expect(page.getByRole('button', { name: 'Add Franchise' })).toBeVisible();
+
+    // Add a franchise
+    await page.getByRole('button', { name: 'Add Franchise' }).click();
+    await page.getByRole('textbox', { name: 'franchise name' }).click();
+    await page.getByRole('textbox', { name: 'franchise name' }).fill('first franchise');
+    await page.getByRole('textbox', { name: 'franchisee admin email' }).click();
+    await page.getByRole('textbox', { name: 'franchisee admin email' }).fill('f@jwt.com');
+    await page.getByRole('button', { name: 'Create' }).click();
+    //post
+    //here we call the second get
+    await page.goto('/admin-dashboard');
+
+    await expect(page.getByRole('table')).toContainText('first franchise');
+    await expect(page.getByRole('table')).toContainText('pizza franchisee');
+    await expect(page.getByRole('row', { name: 'first franchise pizza' }).getByRole('button')).toBeVisible();
+    await page.getByRole('row', { name: 'first franchise pizza' }).getByRole('button').click();
+    await expect(page.getByText('Sorry to see you go')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Close' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    await expect(page.getByRole('main')).toContainText('Are you sure you want to close the first franchise franchise? This will close all associated stores and cannot be restored. All outstanding revenue will not be refunded.');
+        
+
+})
+
+test('registration, logout', async ({ page }) => {
     //Registration route
     await page.route('**/api/auth', async (route) => {
         const method = route.request().method();
