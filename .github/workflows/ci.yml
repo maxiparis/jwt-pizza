@@ -54,6 +54,10 @@ jobs:
     permissions:
       id-token: write
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://pizza.maxiparis.com
+#      not sure if I should keep this env below
     env:
       version: ${{needs.build.outputs.version}}
     steps:
